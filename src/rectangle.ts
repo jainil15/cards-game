@@ -1,4 +1,4 @@
-import type { Vector } from "./game";
+import { Vector } from "./vector";
 
 export class Rectangle {
 	public pos: Vector;

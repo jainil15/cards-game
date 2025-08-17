@@ -1,5 +1,5 @@
-import { Vector, type GameObject } from "./game";
-
+import { type GameObject } from "./game";
+import { Vector } from "./vector";
 export class EventHandler {
 	public static instance: EventHandler | null = null;
 	private canvas: HTMLCanvasElement;
