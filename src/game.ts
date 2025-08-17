@@ -1,10 +1,12 @@
 import { AssetLoader } from "./asset-loader";
+import { EventHandler } from "./event-handler";
 
 export class Game {
 	private canvas: HTMLCanvasElement;
 	public ctx: CanvasRenderingContext2D | null;
 	private cards: Card[];
 	private lastTimestamp: number = 0;
+	private eventHandler: EventHandler;
 
 	constructor(canvasId: string) {
 		this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -19,9 +21,14 @@ export class Game {
 		if (!this.ctx) {
 			throw new Error("Failed to get canvas context.");
 		}
+		this.eventHandler = EventHandler.getInstance(this.canvas);
 		const card = new Card(new Vector(100, 100), "A", "hearts");
+		const card2 = new Card(new Vector(159, 100), "A", "clubs");
 		this.cards = [];
+		this.eventHandler.addGameObject(card);
 		this.cards.push(card);
+		this.eventHandler.addGameObject(card2);
+		this.cards.push(card2);
 	}
 	public start(): void {
 		this.gameLoop(0);
@@ -42,9 +49,13 @@ export class Game {
 	}
 }
 
-interface GameObject {
+export interface GameObject {
+	pos: Vector;
+	dimensions: Vector;
 	draw(ctx: CanvasRenderingContext2D): void;
 	update(ctx: CanvasRenderingContext2D, delta: number): void;
+	onClick?(): void;
+	onDrag?(pos: Vector): void;
 }
 export type Suit = "spades" | "clubs" | "diamonds" | "hearts";
 export type Rank =
@@ -62,6 +73,12 @@ export type Rank =
 	| "3"
 	| "2";
 
+function moveItem<T>(arr: T[], fromIndex: number, toIndex: number): T[] {
+	const newArr = [...arr];
+	const [movedItem] = newArr.splice(fromIndex, 1);
+	newArr.splice(toIndex, 0, movedItem);
+	return newArr;
+}
 export class Card implements GameObject {
 	rank: Rank;
 	suit: Suit;
@@ -69,14 +86,16 @@ export class Card implements GameObject {
 	pos: Vector;
 	faceTextue: HTMLImageElement | null = null;
 	rotation: number = 0;
-	cardWidth: number = 100;
-	cardHeight: number = 140;
+	dimensions: Vector;
 	animationTime: number = 0;
 	startAnimation: boolean = true;
+
 	public constructor(pos: Vector, rank: Rank, suit: Suit) {
 		this.suit = suit;
 		this.rank = rank;
 		this.pos = pos;
+		this.dimensions = new Vector(100, 150);
+
 		Promise.all([
 			AssetLoader.getInstance().loadImage(
 				`../assets/${this.rank}_of_${this.suit}.svg`,
@@ -96,36 +115,46 @@ export class Card implements GameObject {
 		}
 		ctx.save();
 		ctx.translate(
-			this.pos.x + this.cardWidth / 2,
-			this.pos.y + this.cardHeight / 2,
+			this.pos.x + this.dimensions.x / 2,
+			this.pos.y + this.dimensions.y / 2,
 		);
 		ctx.rotate(this.rotation);
 		ctx.drawImage(
 			this.faceTextue,
-			-this.cardWidth / 2,
-			-this.cardHeight / 2,
-			this.cardWidth,
-			this.cardHeight,
+			-this.dimensions.x / 2,
+			-this.dimensions.y / 2,
+			this.dimensions.x,
+			this.dimensions.y,
 		);
 		ctx.restore();
 	}
 	public update(ctx: CanvasRenderingContext2D, delta: number): void {
 		if (this.startAnimation) {
-			this.wiggle(ctx);
+			this.wiggle();
 		}
 	}
-	public wiggle(ctx: CanvasRenderingContext2D): void {
+	public onClick(): void {
+		console.log(`Card clicked: ${this.rank} of ${this.suit}`);
+		this.startAnimation = true;
+		this.animationTime = 0;
+		this.wiggle();
+	}
+	public onDrag(pos: Vector): void {
+		this.pos.x = pos.x;
+		this.pos.y = pos.y;
+	}
+
+	public wiggle(): void {
 		if (this.animationTime >= 30) {
-			this.rotation = 0; // Reset rotation after animation
+			this.rotation = 0;
 			this.startAnimation = false;
 			return;
 		}
 
 		this.animationTime += 1;
-		const wiggleSpeed = 0.2; // smaller = slower oscillation
-		const wiggleAmplitude = 0.3; // in radians (~6°)
+		const wiggleSpeed = 0.2;
+		const wiggleAmplitude = 0.3;
 
-		// Smooth oscillation using sine
 		this.rotation =
 			Math.sin(this.animationTime * wiggleSpeed) * wiggleAmplitude;
 	}
@@ -137,5 +166,14 @@ export class Vector {
 	constructor(x: number, y: number) {
 		this.x = x;
 		this.y = y;
+	}
+	add(vector: Vector): Vector {
+		return new Vector(this.x + vector.x, this.y + vector.y);
+	}
+	subtract(vector: Vector): Vector {
+		return new Vector(this.x - vector.x, this.y - vector.y);
+	}
+	multiply(scalar: number): Vector {
+		return new Vector(this.x * scalar, this.y * scalar);
 	}
 }
